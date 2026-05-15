@@ -1,1 +1,1 @@
-"""Servicios del proyecto."""
+"""Project services."""

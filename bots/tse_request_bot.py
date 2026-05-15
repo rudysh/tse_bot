@@ -8,138 +8,138 @@ from bs4 import BeautifulSoup
 
 
 class TseRequestBot:
-    """Consulta cédulas mediante requests simulando el formulario ASP.NET."""
+    """Queries IDs through requests by simulating the ASP.NET form."""
 
-    metodo = "api_request"
+    method = "api_request"
 
     def __init__(self, url: str, logger) -> None:
         self.url = url
         self.logger = logger
         self.session: Optional[requests.Session] = None
-        parsed = urlparse(url)
-        self.origin = f"{parsed.scheme}://{parsed.netloc}"
+        parsed_url = urlparse(url)
+        self.origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-    def abrir(self) -> None:
+    def open(self) -> None:
         self.session = requests.Session()
 
-    def cerrar(self) -> None:
+    def close(self) -> None:
         if self.session is not None:
             self.session.close()
             self.session = None
 
-    def consultar_cedula(self, cedula: str) -> tuple[str, str]:
+    def query_id(self, id_number: str) -> tuple[str, str]:
         if self.session is None:
             raise RuntimeError("La sesión HTTP no está abierta")
 
         try:
-            respuesta_get = self.session.get(self.url, headers=self._headers_get(), timeout=20)
-            respuesta_get.raise_for_status()
-            campos_ocultos = self._extraer_campos_ocultos(respuesta_get.text)
+            get_response = self.session.get(self.url, headers=self._get_headers(), timeout=20)
+            get_response.raise_for_status()
+            hidden_fields = self._extract_hidden_fields(get_response.text)
 
             payload = {
-                **campos_ocultos,
+                **hidden_fields,
                 "ScriptManager1": "UpdatePanel1|btnConsultaCedula",
-                "txtcedula": cedula,
+                "txtcedula": id_number,
                 "grupo": "",
                 "comentario": "",
                 "__ASYNCPOST": "true",
                 "btnConsultaCedula": "Consultar",
             }
-            respuesta_post = self.session.post(
+            post_response = self.session.post(
                 self.url,
                 data=payload,
-                headers=self._headers_post(),
+                headers=self._post_headers(),
                 timeout=20,
             )
-            respuesta_post.raise_for_status()
-            contenido_resultado = self._resolver_contenido_resultado(respuesta_post)
-            return self._leer_resultado(contenido_resultado)
+            post_response.raise_for_status()
+            result_content = self._resolve_result_content(post_response)
+            return self._read_result(result_content)
         except Exception as exc:  # noqa: BLE001
-            self.logger.exception("Fallo consultando cédula %s por api_request", cedula)
+            self.logger.exception("Fallo consultando cédula %s por api_request", id_number)
             return "", f"Error: {exc}"
 
-    def _extraer_campos_ocultos(self, html: str) -> dict[str, str]:
+    def _extract_hidden_fields(self, html: str) -> dict[str, str]:
         soup = BeautifulSoup(html, "html.parser")
-        campos = {}
-        for nombre in ("__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION"):
-            campo = soup.find("input", {"name": nombre})
-            if campo is None or campo.get("value") is None:
-                raise RuntimeError(f"No se encontró el campo oculto {nombre}")
-            campos[nombre] = campo["value"]
-        return campos
+        fields = {}
+        for field_name in ("__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION"):
+            field = soup.find("input", {"name": field_name})
+            if field is None or field.get("value") is None:
+                raise RuntimeError(f"No se encontró el campo oculto {field_name}")
+            fields[field_name] = field["value"]
+        return fields
 
-    def _leer_resultado(self, contenido: str) -> tuple[str, str]:
-        contenido_util = self._extraer_contenido_util(contenido)
-        texto = BeautifulSoup(contenido_util, "html.parser").get_text(" ", strip=True)
-        texto_normalizado = texto.lower()
+    def _read_result(self, content: str) -> tuple[str, str]:
+        useful_content = self._extract_useful_content(content)
+        text = BeautifulSoup(useful_content, "html.parser").get_text(" ", strip=True)
+        normalized_text = text.lower()
 
-        if "error de conexión" in texto_normalizado:
+        if "error de conexión" in normalized_text:
             raise RuntimeError("El sitio del TSE mostró error de conexión")
-        if "no se encontró" in texto_normalizado or "no existe" in texto_normalizado:
+        if "no se encontró" in normalized_text or "no existe" in normalized_text:
             return "", "No encontrado"
 
-        nombre = self._extraer_nombre(contenido_util)
-        if nombre:
-            return nombre, "Consultado"
+        name = self._extract_name(useful_content)
+        if name:
+            return name, "Consultado"
         return "", "Sin nombre detectado"
 
-    def _resolver_contenido_resultado(self, respuesta_post: requests.Response) -> str:
-        contenido = respuesta_post.text
-        destino = self._extraer_redireccion_ajax(contenido)
-        if destino:
+    def _resolve_result_content(self, post_response: requests.Response) -> str:
+        content = post_response.text
+        redirect_target = self._extract_ajax_redirect(content)
+        if redirect_target:
             assert self.session is not None
-            url_destino = urljoin(self.url, unquote(destino))
-            respuesta_resultado = self.session.get(
-                url_destino,
-                headers=self._headers_get(),
+            redirect_url = urljoin(self.url, unquote(redirect_target))
+            result_response = self.session.get(
+                redirect_url,
+                headers=self._get_headers(),
                 timeout=20,
             )
-            respuesta_resultado.raise_for_status()
-            return respuesta_resultado.text
+            result_response.raise_for_status()
+            return result_response.text
 
-        return contenido
+        return content
 
     @staticmethod
-    def _extraer_redireccion_ajax(contenido: str) -> Optional[str]:
-        patrones = (
+    def _extract_ajax_redirect(content: str) -> Optional[str]:
+        patterns = (
             r"pageRedirect\|\|([^|]+)\|",
             r"resultado_persona\.aspx[^|\"']*",
         )
-        for patron in patrones:
-            coincidencia = re.search(patron, contenido, flags=re.IGNORECASE)
-            if coincidencia:
-                return coincidencia.group(1) if coincidencia.groups() else coincidencia.group(0)
+        for pattern in patterns:
+            match = re.search(pattern, content, flags=re.IGNORECASE)
+            if match:
+                return match.group(1) if match.groups() else match.group(0)
         return None
 
     @staticmethod
-    def _extraer_contenido_util(contenido: str) -> str:
-        """Extrae el HTML útil cuando ASP.NET devuelve una respuesta delta."""
-        if "|updatePanel|" not in contenido:
-            return contenido
+    def _extract_useful_content(content: str) -> str:
+        """Extracts useful HTML when ASP.NET returns a delta response."""
+        if "|updatePanel|" not in content:
+            return content
 
-        partes = contenido.split("|")
-        fragmentos_html: list[str] = []
-        for indice, parte in enumerate(partes):
-            if parte == "updatePanel" and indice + 2 < len(partes):
-                fragmentos_html.append(unescape(partes[indice + 2]))
+        parts = content.split("|")
+        html_fragments: list[str] = []
+        for index, part in enumerate(parts):
+            if part == "updatePanel" and index + 2 < len(parts):
+                html_fragments.append(unescape(parts[index + 2]))
 
-        return "\n".join(fragmentos_html) if fragmentos_html else contenido
+        return "\n".join(html_fragments) if html_fragments else content
 
-    def _extraer_nombre(self, contenido: str) -> Optional[str]:
-        soup = BeautifulSoup(contenido, "html.parser")
+    def _extract_name(self, content: str) -> Optional[str]:
+        soup = BeautifulSoup(content, "html.parser")
         for selector in ("#lblNombre", "#lblNombreCompleto", "#lblnombrecompleto"):
-            elemento = soup.select_one(selector)
-            if elemento:
-                texto = elemento.get_text(" ", strip=True)
-                if texto:
-                    return texto
+            element = soup.select_one(selector)
+            if element:
+                text = element.get_text(" ", strip=True)
+                if text:
+                    return text
 
-        texto = soup.get_text("\n", strip=True)
-        return self._extraer_nombre_desde_texto(texto)
+        text = soup.get_text("\n", strip=True)
+        return self._extract_name_from_text(text)
 
     @staticmethod
-    def _extraer_nombre_desde_texto(texto: str) -> Optional[str]:
-        lineas_ignoradas = (
+    def _extract_name_from_text(text: str) -> Optional[str]:
+        ignored_lines = (
             "favor digitar",
             "debe utilizar",
             "tribunal supremo",
@@ -150,23 +150,23 @@ class TseRequestBot:
             "consultar nombre",
         )
 
-        for linea in texto.splitlines():
-            valor = linea.strip()
-            if not valor:
+        for line in text.splitlines():
+            value = line.strip()
+            if not value:
                 continue
-            if any(ruido in valor.lower() for ruido in lineas_ignoradas):
+            if any(noise in value.lower() for noise in ignored_lines):
                 continue
-            if len(valor.split()) >= 2 and not re.fullmatch(r"\d+", valor):
-                return valor
+            if len(value.split()) >= 2 and not re.fullmatch(r"\d+", value):
+                return value
         return None
 
-    def _headers_get(self) -> dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         return {
             "User-Agent": self._user_agent(),
             "Referer": self.url,
         }
 
-    def _headers_post(self) -> dict[str, str]:
+    def _post_headers(self) -> dict[str, str]:
         return {
             "User-Agent": self._user_agent(),
             "Referer": self.url,

@@ -3,7 +3,7 @@ import logging
 from config import LOG_DIR
 
 
-def configurar_logging() -> logging.Logger:
+def configure_logging() -> logging.Logger:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(levelname)s | %(message)s",

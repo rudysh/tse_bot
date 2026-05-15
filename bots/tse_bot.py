@@ -12,94 +12,94 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 
 class TseBot:
-    metodo = "selenium"
+    """Controls Chrome and queries IDs on the TSE website."""
 
-    """Controla Chrome y consulta cédulas en el TSE."""
+    method = "selenium"
 
     def __init__(self, url: str, logger) -> None:
         self.url = url
         self.logger = logger
         self.driver: Optional[webdriver.Chrome] = None
 
-    def abrir(self) -> None:
-        opciones = ChromeOptions()
-        opciones.add_argument("--start-maximized")
-        opciones.add_argument("--disable-notifications")
-        opciones.add_argument("--disable-popup-blocking")
-        servicio = Service(ChromeDriverManager().install())
-        self.driver = webdriver.Chrome(service=servicio, options=opciones)
+    def open(self) -> None:
+        options = ChromeOptions()
+        options.add_argument("--start-maximized")
+        options.add_argument("--disable-notifications")
+        options.add_argument("--disable-popup-blocking")
+        service = Service(ChromeDriverManager().install())
+        self.driver = webdriver.Chrome(service=service, options=options)
 
-    def cerrar(self) -> None:
+    def close(self) -> None:
         if self.driver is not None:
             self.driver.quit()
             self.driver = None
             self.logger.info("Chrome cerrado correctamente")
 
-    def consultar_cedula(self, cedula: str) -> tuple[str, str]:
+    def query_id(self, id_number: str) -> tuple[str, str]:
         if self.driver is None:
             raise RuntimeError("El navegador no está abierto")
 
         try:
-            self._navegar_a_consulta()
-            texto_inicial = self._obtener_texto_pagina()
-            self._ingresar_cedula(cedula)
-            return self._leer_resultado(texto_inicial)
+            self._navigate_to_query()
+            initial_text = self._get_page_text()
+            self._enter_id(id_number)
+            return self._read_result(initial_text)
         except Exception as exc:  # noqa: BLE001
-            self.logger.exception("Fallo consultando cédula %s", cedula)
+            self.logger.exception("Fallo consultando cédula %s", id_number)
             return "", f"Error: {exc}"
 
-    def _navegar_a_consulta(self) -> None:
+    def _navigate_to_query(self) -> None:
         assert self.driver is not None
         self.driver.get(self.url)
 
-    def _ingresar_cedula(self, cedula: str) -> None:
+    def _enter_id(self, id_number: str) -> None:
         assert self.driver is not None
         wait = WebDriverWait(self.driver, 15)
-        campo = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='text']")))
-        campo.clear()
-        campo.send_keys(cedula)
-        campo.send_keys(Keys.ENTER)
+        field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='text']")))
+        field.clear()
+        field.send_keys(id_number)
+        field.send_keys(Keys.ENTER)
 
-    def _leer_resultado(self, texto_inicial: str) -> tuple[str, str]:
+    def _read_result(self, initial_text: str) -> tuple[str, str]:
         assert self.driver is not None
         wait = WebDriverWait(self.driver, 10)
-        wait.until(lambda driver: self._obtener_texto_pagina() != texto_inicial)
-        body_text = self._obtener_texto_pagina().lower()
+        wait.until(lambda driver: self._get_page_text() != initial_text)
+        body_text = self._get_page_text().lower()
 
         if "error de conexión" in body_text:
             raise RuntimeError("El sitio del TSE mostró error de conexión")
         if "no se encontró" in body_text or "no existe" in body_text:
             return "", "No encontrado"
 
-        nombre = self._extraer_nombre()
-        if nombre:
-            return nombre, "Consultado"
+        name = self._extract_name()
+        if name:
+            return name, "Consultado"
         return "", "Sin nombre detectado"
 
-    def _obtener_texto_pagina(self) -> str:
+    def _get_page_text(self) -> str:
         assert self.driver is not None
         return self.driver.find_element(By.TAG_NAME, "body").text
 
-    def _extraer_nombre(self) -> Optional[str]:
+    def _extract_name(self) -> Optional[str]:
         assert self.driver is not None
-        selectores = [
+        selectors = [
             (By.ID, "lblNombre"),
             (By.ID, "lblNombreCompleto"),
             (By.XPATH, "//*[contains(translate(text(),'NOMBRE','nombre'),'nombre')]/following::td[1]"),
             (By.XPATH, "//*[contains(translate(text(),'NOMBRE','nombre'),'nombre')]/following::*[1]"),
         ]
 
-        for by, selector in selectores:
-            for elemento in self.driver.find_elements(by, selector):
-                texto = elemento.text.strip()
-                if texto and "nombre" not in texto.lower():
-                    return texto
+        for by, selector in selectors:
+            for element in self.driver.find_elements(by, selector):
+                text = element.text.strip()
+                if text and "nombre" not in text.lower():
+                    return text
 
-        return self._extraer_nombre_desde_texto()
+        return self._extract_name_from_text()
 
-    def _extraer_nombre_desde_texto(self) -> Optional[str]:
+    def _extract_name_from_text(self) -> Optional[str]:
         assert self.driver is not None
-        lineas_ignoradas = (
+        ignored_lines = (
             "favor digitar",
             "debe utilizar",
             "tribunal supremo",
@@ -110,12 +110,12 @@ class TseBot:
             "consultar nombre",
         )
 
-        for linea in self.driver.find_element(By.TAG_NAME, "body").text.splitlines():
-            texto = linea.strip()
-            if not texto:
+        for line in self.driver.find_element(By.TAG_NAME, "body").text.splitlines():
+            text = line.strip()
+            if not text:
                 continue
-            if any(ruido in texto.lower() for ruido in lineas_ignoradas):
+            if any(noise in text.lower() for noise in ignored_lines):
                 continue
-            if len(texto.split()) >= 2 and not re.fullmatch(r"\d+", texto):
-                return texto
+            if len(text.split()) >= 2 and not re.fullmatch(r"\d+", text):
+                return text
         return None

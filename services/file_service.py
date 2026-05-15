@@ -2,26 +2,26 @@ from pathlib import Path
 
 
 class FileService:
-    """Busca y valida el archivo Excel a procesar."""
+    """Finds and validates the Excel file to process."""
 
-    extensiones_permitidas = {".xlsx"}
+    allowed_extensions = {".xlsx"}
 
     def __init__(self, upload_dir: Path) -> None:
         self.upload_dir = upload_dir
 
-    def obtener_archivo_excel(self) -> Path:
-        archivos = sorted(
-            archivo
-            for archivo in self.upload_dir.iterdir()
-            if archivo.is_file() and self.es_archivo_valido(archivo)
+    def get_excel_file(self) -> Path:
+        files = sorted(
+            file
+            for file in self.upload_dir.iterdir()
+            if file.is_file() and self.is_valid_file(file)
         )
 
-        if not archivos:
+        if not files:
             raise FileNotFoundError("No hay archivos .xlsx dentro de uploads/")
-        if len(archivos) > 1:
+        if len(files) > 1:
             raise RuntimeError("Hay más de un archivo .xlsx en uploads/. Deja solo uno para procesar.")
 
-        return archivos[0]
+        return files[0]
 
-    def es_archivo_valido(self, ruta_archivo: Path) -> bool:
-        return ruta_archivo.suffix.lower() in self.extensiones_permitidas
+    def is_valid_file(self, file_path: Path) -> bool:
+        return file_path.suffix.lower() in self.allowed_extensions

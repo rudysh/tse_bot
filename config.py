@@ -8,6 +8,7 @@ TSE_URL = "https://servicioselectorales.tse.go.cr/chc/consulta_cedula.aspx"
 BOT_MODE = "selenium"
 #BOT_MODE = "api_request"
 
-def crear_carpetas_base() -> None:
+
+def create_base_dirs() -> None:
     for folder in (UPLOAD_DIR, LOG_DIR):
         folder.mkdir(parents=True, exist_ok=True)

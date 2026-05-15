@@ -1,1 +1,1 @@
-"""Bots de automatización."""
+"""Automation bots."""
