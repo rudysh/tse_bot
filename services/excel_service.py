@@ -31,6 +31,7 @@ class ExcelService:
             2: "Nombre completo",
             3: "Estado",
             4: "Fecha y hora de consulta",
+            5: "Método de consulta",
         }
         for columna, titulo in encabezados.items():
             if self.sheet.cell(row=1, column=columna).value is None:
@@ -50,10 +51,11 @@ class ExcelService:
     def total_consultas(self) -> int:
         return max(self.sheet.max_row - self.fila_inicio + 1, 0)
 
-    def escribir_resultado(self, fila: int, nombre: str, estado: str, fecha_hora: str) -> None:
+    def escribir_resultado(self, fila: int, nombre: str, estado: str, fecha_hora: str, metodo: str) -> None:
         self.sheet.cell(row=fila, column=2).value = nombre
         self.sheet.cell(row=fila, column=3).value = estado
         self.sheet.cell(row=fila, column=4).value = fecha_hora
+        self.sheet.cell(row=fila, column=5).value = metodo
         self._aplicar_color_fila(fila, estado)
 
     def guardar(self) -> None:

@@ -1,17 +1,28 @@
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Protocol
 
-from bots.tse_bot import TseBot
+from bots.bot_factory import crear_bot
 from config import TSE_URL
 from services.excel_service import ExcelService
 from services.file_service import FileService
 
 
+class BotLike(Protocol):
+    metodo: str
+
+    def abrir(self) -> None: ...
+
+    def cerrar(self) -> None: ...
+
+    def consultar_cedula(self, cedula: str) -> tuple[str, str]: ...
+
+
 class BotProcessor:
     """Orquesta la lectura, consulta y escritura sobre el mismo Excel."""
 
-    def __init__(self, file_service: FileService, logger, bot_factory: type[TseBot] = TseBot) -> None:
+    def __init__(self, file_service: FileService, logger, bot_factory=crear_bot) -> None:
         self.file_service = file_service
         self.logger = logger
         self.bot_factory = bot_factory
@@ -32,13 +43,13 @@ class BotProcessor:
         finally:
             bot.cerrar()
 
-    def _procesar_filas(self, excel: ExcelService, bot: TseBot) -> None:
+    def _procesar_filas(self, excel: ExcelService, bot: BotLike) -> None:
         total = excel.total_consultas()
 
         for indice, (fila, cedula) in enumerate(excel.iterar_cedulas(), start=1):
             nombre, estado = self._resolver_consulta(bot, cedula)
             fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            excel.escribir_resultado(fila, nombre, estado, fecha_hora)
+            excel.escribir_resultado(fila, nombre, estado, fecha_hora, bot.metodo)
             self._registrar_progreso(indice, total, cedula, estado)
 
             if indice % 10 == 0:
@@ -48,15 +59,15 @@ class BotProcessor:
             self._esperar_entre_consultas(indice, total)
 
     @staticmethod
-    def _resolver_consulta(bot: TseBot, cedula: str) -> tuple[str, str]:
+    def _resolver_consulta(bot: BotLike, cedula: str) -> tuple[str, str]:
         if not cedula:
-            return "", "Cédula vacía"
+            return "", "CÃ©dula vacÃ­a"
         if not cedula.isdigit() or len(cedula) != 9:
-            return "", "Cédula inválida"
+            return "", "CÃ©dula invÃ¡lida"
         return bot.consultar_cedula(cedula)
 
     def _registrar_progreso(self, indice: int, total: int, cedula: str, estado: str) -> None:
-        mensaje = f"Procesada {indice}/{total} | Cédula: {cedula or '[vacía]'} | Estado: {estado}"
+        mensaje = f"Procesada {indice}/{total} | CÃ©dula: {cedula or '[vacÃ­a]'} | Estado: {estado}"
         print(mensaje)
         self.logger.info(mensaje)
 

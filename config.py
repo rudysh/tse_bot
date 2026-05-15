@@ -5,7 +5,8 @@ BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 LOG_DIR = BASE_DIR / "logs"
 TSE_URL = "https://servicioselectorales.tse.go.cr/chc/consulta_cedula.aspx"
-
+BOT_MODE = "selenium"
+#BOT_MODE = "api_request"
 
 def crear_carpetas_base() -> None:
     for folder in (UPLOAD_DIR, LOG_DIR):

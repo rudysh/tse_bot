@@ -12,6 +12,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 
 class TseBot:
+    metodo = "selenium"
+
     """Controla Chrome y consulta cédulas en el TSE."""
 
     def __init__(self, url: str, logger) -> None:
